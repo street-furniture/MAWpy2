@@ -141,10 +141,6 @@ def plot_single_user_trajectory(df, user_id):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
 def plot_user_stay_points_over_time(df, user_id):
     """
     Plots the total number of visits to stay locations per hour for a specific user, for all traces contained in the input dataframe for the user.
