@@ -12,12 +12,6 @@ def is_stay_dataframe(df):
 
     This function adds a new column 'If_Stay_Point' which indicates whether a row is a stay point
     based on whether 'stay_lat' is not -1.
-
-    Parameters:
-    df (pd.DataFrame): Input DataFrame containing location and time data.
-
-    Returns:
-    pd.DataFrame: DataFrame with an additional 'If_Stay_Point' column.
     """
     df = df[sorted_columns]
     df['If_Stay_Point'] = df[STAY_LAT].apply(lambda x: False if x == -1 else True)
@@ -30,12 +24,6 @@ def get_polished_dataframe(df):
     Filters rows where 'If_Stay_Point' is True and then groups by 'USER_ID' and 'STAY'.
     Aggregates the latitude, longitude, start time, end time, and count of records for each stay.
     Renames columns to match output specifications.
-
-    Parameters:
-    df (pd.DataFrame): Input DataFrame containing stay points data.
-
-    Returns:
-    pd.DataFrame: Aggregated DataFrame with stay information.
     """
     df = is_stay_dataframe(df)
     df_stay = df[df['If_Stay_Point'] == True]
@@ -60,11 +48,6 @@ def get_trajectory_dataframe(df):
     Groups data by 'user_id' and 'unix_start_date', processes each group to build a trajectory of GPS points,
     and calculates the start and end times for each trajectory. Includes a list of stay indicators.
 
-    Parameters:
-    df (pd.DataFrame): Input DataFrame containing stay points data.
-
-    Returns:
-    pd.DataFrame: DataFrame with trajectory information, including start and end times, and stay indicators.
     """
     df = is_stay_dataframe(df)
 
@@ -97,12 +80,6 @@ def get_trip_dataframe(df):
     Groups data by 'user_id' and 'unix_start_date', processes each group to build a trip trajectory based on stay points,
     and calculates the number of GPS points, start time of the first stay, and end time of the last stay.
     Handles transient points between stay points.
-
-    Parameters:
-    df (pd.DataFrame): Input DataFrame containing stay points data.
-
-    Returns:
-    pd.DataFrame: DataFrame with trip information, including trip string, number of GPS points, and start/end times.
     """
     df = is_stay_dataframe(df)
 
