@@ -26,7 +26,31 @@ from mawpy.utilities import (
 
 logger = logging.getLogger(__name__)
 
+def validate_input_args(duration_constraint: float, max_duration: float = 86400):
+    """
+    Validate the input arguments for the address_oscillation function.
 
+    Parameters
+    ----------
+    duration_constraint : float
+        Duration constraint for identifying oscillations.
+    max_duration : float, optional
+        Maximum allowable duration, by default 86400 seconds (24 hours).
+
+    Raises
+    ------
+    ValueError
+        If the duration_constraint is not a float, is negative, or exceeds the maximum allowable duration.
+    """
+    if not isinstance(duration_constraint, float):
+        raise ValueError(f"Duration constraint must be a float, but got {type(duration_constraint).__name__}.")
+    
+    if duration_constraint < 0:
+        raise ValueError("Duration constraint cannot be negative.")
+    
+    if duration_constraint > max_duration:
+        raise ValueError(f"Duration constraint cannot exceed {max_duration} seconds.")
+        
 def _get_stay_duration_for_group(df_per_group: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate the stay duration for traces grouped by the same STAY.
@@ -137,6 +161,10 @@ def update_stay_duration(output_file: str, dur_constraint: float,
 
     if input_df is None:
         input_df = get_preprocessed_dataframe(input_file)
+
+    
+    # Validate the duration constraint
+    validate_input_args(dur_constraint)
 
     user_id_chunks = get_list_of_chunks_by_column(input_df, USER_ID)
     validate_input_args(duration_constraint=dur_constraint)
