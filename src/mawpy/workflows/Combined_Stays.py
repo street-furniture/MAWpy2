@@ -192,11 +192,18 @@ def process_temporally_intersected(temporally_intersected, df_low_var, temporal_
 
     return final_contained_clusters, new_clusters
 
-def process_clusters(df_low_var, df_high_var, temporal_threshold):
+def stay_combined_extactor(df_low_var, df_high_var, temporal_threshold):
     """
     Process the clusters from df_high_var and classify them into temporal categories 
     relative to df_low_var, then apply spatial checks and update the low variance dataframe.
     """
+    # Validation step: Check for missing or invalid 'stay_dur' values
+    if df_low_var['stay_dur'].isnull().any() or (df_low_var['stay_dur'] == -1).any():
+        raise ValueError("df_low_var contains invalid 'stay_dur' values. Please run 'ts_usd' to update df_low_var.")
+
+    if df_high_var['stay_dur'].isnull().any() or (df_high_var['stay_dur'] == -1).any():
+        raise ValueError("df_high_var contains invalid 'stay_dur' values. Please run 'ic_usd' to update df_high_var.")
+        
     # Step 1: Temporal classification
     temporally_separate, temporally_contained, temporally_intersected = classify_temporal_relationships(df_high_var, df_low_var, temporal_threshold)
 
