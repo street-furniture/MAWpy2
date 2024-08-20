@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from geopy.geocoders import Nominatim
+from mobility_metrics import get_daily_metrics
 
 def plot_all_user_trajectories(df):
     """
@@ -382,4 +383,51 @@ def plot_num_of_Devices_per_Day_for_multiple_locations_Over_Time(df, population_
     plt.tight_layout()
     plt.show()    
 
+
+def plot_num_of_records_per_device_over_time(df):
+    daily_metrics_df = get_daily_metrics(df)
+    daily_metrics_df['date'] = pd.to_datetime(daily_metrics_df['date'])
+    daily_metrics_df['MSA'] = daily_metrics_df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
+    date_range = pd.date_range(start=daily_metrics_df['date'].min(), end=daily_metrics_df['date'].max(), freq='D')
+    user_ids = daily_metrics_df['user_id'].unique()
+    unique_users = daily_metrics_df['user_id'].unique()
+    unique_msa = daily_metrics_df['MSA'].unique()
+    
+    date_range = pd.date_range(start=daily_metrics_df['date'].min(), end=daily_metrics_df['date'].max(), freq='D')
+    # Map user_id to MSA directly to avoid unnecessary combinations
+    user_msa_map = daily_metrics_df[['user_id', 'MSA']].drop_duplicates().set_index('user_id')
+    # Create a DataFrame with all date and user_id combinations
+    all_dates = pd.DataFrame(date_range, columns=['date'])
+    all_users = pd.DataFrame(user_msa_map.index.unique(), columns=['user_id'])
+    user_dates = pd.merge(all_dates.assign(key=1), all_users.assign(key=1), on='key').drop('key', axis=1)
+    # Add MSA to each user-date combination
+    complete_data = user_dates.join(user_msa_map, on='user_id')
+    # Merge with the original records and fill missing data
+    daily_metrics_df_complete = complete_data.merge(daily_metrics_df, on=['date', 'user_id', 'MSA'], how='left').fillna(0)
+    daily_metrics_df_complete['datetime'] = daily_metrics_df_complete['date']
+    daily_metrics_df_complete['date'] = daily_metrics_df_complete['date'].dt.date
+    daily_metrics_df_complete['MSA'] = daily_metrics_df_complete['MSA'].map(MSA_dict)
+    # sort the df by MSA_order
+    daily_metrics_df_complete['MSA'] = pd.Categorical(daily_metrics_df_complete['MSA'], categories=MSA_order, ordered=True)
+
+    num_of_records_per_device_df_complete = daily_metrics_df_complete.groupby(['MSA','date']).num_of_records.mean().reset_index()
+    num_of_records_per_device_df_complete.columns = ['MSA','date','num_of_records_per_device']
+    
+    num_of_records_per_device_df_complete['MSA'] = num_of_records_per_device_df_complete['MSA'].astype('string')
+    
+    plt.figure(figsize=(16, 8),dpi=200)
+    sns.lineplot(data=num_of_records_per_device_df_complete, x='date', y='num_of_records_per_device', hue='MSA',marker='.', palette=palette, linestyle='-',linewidth=1)
+    plt.title(f'Number of Records Per Device Over Time')
+    plt.xlabel('Date', fontsize=12)
+    plt.ylabel('Number of Records Per Device Per Day', fontsize=12)
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.legend(title='MSA', bbox_to_anchor=(1.01, 1), loc='upper left')
+    #plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
+    #plt.text(pd.Timestamp('2020-03-15'), num_of_records_per_device_df_complete['num_of_records_per_device'].max()*1.01, '  03/15', color='black', fontsize=12)
+    
+    plt.grid(True)
+    plt.tight_layout()
+
+    
 
