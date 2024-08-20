@@ -1,6 +1,6 @@
 import pandas as pd
 
-def split_and_classify(high_cluster, low_var_clusters):
+def split_and_classify(high_cluster, low_var_clusters, temporal_threshold):
     # Initialize the best match variables for both contained and separate conditions
     high_cluster_start = high_cluster['unix_start_t'].min()
     high_cluster_end = high_cluster['unix_start_t'].max()
@@ -13,6 +13,10 @@ def split_and_classify(high_cluster, low_var_clusters):
         low_cluster = low_var_clusters[low_var_clusters['stay'] == low_stay_id]
         low_cluster_start = low_cluster['unix_start_t'].min()
         low_cluster_end = low_cluster['unix_start_t'].max()
+
+        # Check if the time span of the low variance cluster is below the threshold
+        if low_cluster_end - low_cluster_start < temporal_threshold:
+            continue  # Skip this cluster as it does not meet the threshold requirement
 
         # Temporally contained condition with best match calculation
         if high_cluster_start >= low_cluster_start and high_cluster_end <= low_cluster_end:
@@ -33,7 +37,7 @@ def split_and_classify(high_cluster, low_var_clusters):
 
     return best_contained, best_separate
 
-def process_clusters(df_low_var, df_high_var):
+def process_clusters(df_low_var, df_high_var, temporal_threshold):
     common_user_ids = set(df_low_var['user_id']).intersection(df_high_var['user_id'])
     df_low_var = df_low_var[df_low_var['user_id'].isin(common_user_ids)].sort_values('unix_start_t')
     df_high_var = df_high_var[df_high_var['user_id'].isin(common_user_ids)].sort_values('unix_start_t')
@@ -48,7 +52,7 @@ def process_clusters(df_low_var, df_high_var):
         
         for high_stay_id in high_var_clusters['stay'].unique():
             high_cluster = high_var_clusters[high_var_clusters['stay'] == high_stay_id]
-            best_contained, best_separate = split_and_classify(high_cluster, low_var_clusters)
+            best_contained, best_separate = split_and_classify(high_cluster, low_var_clusters, temporal_threshold)
 
             if best_contained:
                 temporally_contained.append(best_contained)
