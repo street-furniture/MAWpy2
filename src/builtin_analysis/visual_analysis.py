@@ -312,13 +312,74 @@ def plot_num_of_Devices_per_Day_for_single_location_Over_Time(df, city_populatio
     plt.yticks(fontsize=10)
     plt.legend(title='MSA (Average sampling rate)', bbox_to_anchor=(1.01, 1), loc='upper left')
     
-    plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
-    plt.text(pd.Timestamp('2020-03-15'), df['num_of_device'].max() * 1.01, '  03/15', color='black', fontsize=12)
+    #plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
+    #plt.text(pd.Timestamp('2020-03-15'), df['num_of_device'].max() * 1.01, '  03/15', color='black', fontsize=12)
     
     plt.grid(True)
     plt.tight_layout()
 
     
+def plot_num_of_Devices_per_Day_for_multiple_locations_Over_Time(df, population_data):
+    # Check if population_data is a dictionary
+    if not isinstance(population_data, dict):
+        raise TypeError("population_data must be a dictionary with city names as keys and populations as values.")
     
+    # Convert unix timestamp to date
+    df['unix_start_time'] = df['unix_start_time'].apply(lambda x: datetime.utcfromtimestamp(x).strftime('%Y-%m-%d'))
+    df.rename(columns={'unix_start_time': 'date'}, inplace=True)
+    
+    # Add MSA based on latitude and longitude
+    df['MSA'] = df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
+    
+    # Convert date to datetime and extract only the date part
+    df['date'] = pd.to_datetime(df['date'])
+    df['datetime'] = df['date']
+    df['date'] = df['date'].dt.date
+    
+    # Calculate the number of unique devices per day
+    num_devices_per_date = df.groupby('date')['user_ID'].nunique().reset_index()
+    num_devices_per_date.columns = ['date', 'num_of_device']
+
+    # Merge the counts back to the original DataFrame
+    df = pd.merge(df, num_devices_per_date, on='date', how='left')
+
+    # Assign population to each MSA
+    df['population'] = df['MSA'].map(population_data)
+    df['population'] = df['population'].astype(int)
+
+    # Calculate the sampling rate
+    df['sampling_rate'] = df['num_of_device'] / df['population']
+
+    # Calculate the average sampling rate per MSA
+    df['Average Sampling Rate'] = df.groupby('MSA')['sampling_rate'].transform('mean') * 100
+
+    # Create a new column combining MSA and the rounded average sampling rate
+    df['MSA_Average Sampling Rate'] = df['MSA'].astype('string') + ' (' + df['Average Sampling Rate'].round(1).astype(str) + '%)'
+
+    # Plotting
+    plt.figure(figsize=(16, 8), dpi=200)
+
+    # Filter data for every 3rd day
+    plot_df = df[(df['datetime'] - df['datetime'].min()).dt.days % 3 == 0]
+
+    # Plot with different colors for each MSA
+    sns.lineplot(data=plot_df, x='date', y='num_of_device', hue='MSA_Average Sampling Rate', style='MSA_Average Sampling Rate', markers=True, dashes=False)
+
+    # Set plot title and labels
+    plt.title(f'Number of Devices per Day for Each MSA Over Time')
+    plt.xlabel('Date', fontsize=12)
+    plt.ylabel('Number of Devices', fontsize=12)
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.legend(title='MSA (Average sampling rate)', bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    # Add a vertical line and annotation for a specific date
+    #plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
+    #plt.text(pd.Timestamp('2020-03-15'), df['num_of_device'].max() * 1.01, '  03/15', color='black', fontsize=12)
+
+    # Add grid and tighten layout
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()    
 
 
