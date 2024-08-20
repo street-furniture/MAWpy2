@@ -37,6 +37,45 @@ from mawpy.utilities import (
 
 logger = logging.getLogger(__name__)
 
+def validate_input_args(duration_constraint: float, spatial_constraint: float, 
+                        max_duration: float = 86400, max_spatial: float = 100):
+    """
+    Validate the input arguments for the incremental_clustering function.
+
+    Parameters
+    ----------
+    duration_constraint : float
+        The duration constraint for clustering.
+    spatial_constraint : float
+        The spatial constraint for clustering.
+    max_duration : float, optional
+        The maximum allowable duration constraint, by default 86400 seconds (24 hours).
+    max_spatial : float, optional
+        The maximum allowable spatial constraint, by default 100 kilometers.
+
+    Raises
+    ------
+    ValueError
+        If either the duration_constraint or spatial_constraint is not a float, is negative, 
+        or exceeds the maximum allowable values.
+    """
+    if not isinstance(duration_constraint, float):
+        raise ValueError(f"Duration constraint must be a float, but got {type(duration_constraint).__name__}.")
+    
+    if not isinstance(spatial_constraint, float):
+        raise ValueError(f"Spatial constraint must be a float, but got {type(spatial_constraint).__name__}.")
+    
+    if duration_constraint < 0:
+        raise ValueError("Duration constraint cannot be negative.")
+    
+    if spatial_constraint < 0:
+        raise ValueError("Spatial constraint cannot be negative.")
+    
+    if duration_constraint > max_duration:
+        raise ValueError(f"Duration constraint cannot exceed {max_duration} seconds.")
+    
+    if spatial_constraint > max_spatial:
+        raise ValueError(f"Spatial constraint cannot exceed {max_spatial} kilometers.")
 
 def _get_cluster_center(row: pd.Series, df_columns: list, mapping: dict, dur_constr: float) -> tuple[str, str, str]:
     """
@@ -399,6 +438,9 @@ def incremental_clustering(output_file: str, spatial_constraint: float,
 
     if input_df is None:
         input_df = get_preprocessed_dataframe(input_file)
+
+    # Validate the spatial and duration constraints
+    validate_input_args(duration_constraint=dur_constraint, spatial_constraint=spatial_constraint)
 
     user_id_chunks = get_list_of_chunks_by_column(input_df, USER_ID)
     validate_input_args(duration_constraint=dur_constraint, spatial_constraint=spatial_constraint)
