@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from geopy.geocoders import Nominatim
-from mobility_metrics import get_daily_metrics
+from mobility_metrics import get_daily_metrics, get_longterm_metrics, get_acc
 
 def plot_all_user_trajectories(df):
     """
@@ -261,82 +261,86 @@ def plot_unique_locations_per_weekday(df, user_id):
         print(f"An error occurred: {e}")
 
 def get_city(lat, lon):
-    # Initialize Nominatim API
+    """
+    Retrieves the city name from latitude and longitude using the Nominatim API.
+    """
     geolocator = Nominatim(user_agent="geoapiExercises")
-
-    # Use reverse to get the location
     location = geolocator.reverse((lat, lon), exactly_one=True)
-
-    # Extracting city and state from the location
     address = location.raw['address']
     city = address.get('city', '')
-    state = address.get('state', '')
-
     return city
-    
+
 def plot_num_of_Devices_per_Day_for_single_location_Over_Time(df, city_population):
+    """
+    Plots the number of devices per day for a single location over time.
+    """
+    # Convert unix timestamp to date
     df['unix_start_time'] = df['unix_start_time'].apply(lambda x: datetime.utcfromtimestamp(x).strftime('%Y-%m-%d'))
     df.rename(columns={'unix_start_time': 'date'}, inplace=True)
+
+    # Add MSA based on latitude and longitude
     df['MSA'] = df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
+
+    # Convert date to datetime and extract only the date part
     df['date'] = pd.to_datetime(df['date'])
     df['datetime'] = df['date']
     df['date'] = df['date'].dt.date
+
+    # Calculate the number of unique devices per day
     num_devices_per_date = df.groupby('date')['user_ID'].nunique().reset_index()
     num_devices_per_date.columns = ['date', 'num_of_device']
 
-    # Merging the counts back to the original DataFrame
+    # Merge the counts back to the original DataFrame
     df = pd.merge(df, num_devices_per_date, on='date', how='left')
 
+    # Assign population to the DataFrame
     df['population'] = city_population
     df['population'] = df['population'].astype(int)
 
+    # Calculate the sampling rate
     df['sampling_rate'] = df['num_of_device'] / df['population']
 
-    # Calculate the average sampling rate per MSA
-    df['Average Sampling Rate'] = df.groupby('MSA')['sampling_rate'].transform('mean')
-    
-    # Convert the average sampling rate to a percentage
-    df['Average Sampling Rate'] = df['Average Sampling Rate'] * 100
-    
+    # Calculate the average sampling rate per MSA and convert it to percentage
+    df['Average Sampling Rate'] = df.groupby('MSA')['sampling_rate'].transform('mean') * 100
+
     # Create a new column combining MSA and the rounded average sampling rate
     df['MSA_Average Sampling Rate'] = df['MSA'].astype('string') + ' (' + df['Average Sampling Rate'].round(1).astype(str) + '%)'
 
+    # Plot the data
     plt.figure(figsize=(16, 8), dpi=200)
-
     plot_df = df[(df['datetime'] - df['datetime'].min()).dt.days % 3 == 0]
     sns.lineplot(data=plot_df, x='date', y='num_of_device', hue='MSA_Average Sampling Rate', linestyle='-', marker='o')
 
-    plt.title(f'Number of Devices per Day for {df['MSA'].iloc[0]} Over Time')
+    plt.title(f'Number of Devices per Day for {df["MSA"].iloc[0]} Over Time')
     plt.xlabel('Date', fontsize=12)
     plt.ylabel('Number of Devices', fontsize=12)
     plt.xticks(fontsize=10)
     plt.yticks(fontsize=10)
     plt.legend(title='MSA (Average sampling rate)', bbox_to_anchor=(1.01, 1), loc='upper left')
-    
-    #plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
-    #plt.text(pd.Timestamp('2020-03-15'), df['num_of_device'].max() * 1.01, '  03/15', color='black', fontsize=12)
-    
     plt.grid(True)
     plt.tight_layout()
+    plt.show()
 
-    
 def plot_num_of_Devices_per_Day_for_multiple_locations_Over_Time(df, population_data):
+    """
+    Plots the number of devices per day for multiple locations over time.
+    """
     # Check if population_data is a dictionary
     if not isinstance(population_data, dict):
         raise TypeError("population_data must be a dictionary with city names as keys and populations as values.")
-    
+
     # Convert unix timestamp to date
     df['unix_start_time'] = df['unix_start_time'].apply(lambda x: datetime.utcfromtimestamp(x).strftime('%Y-%m-%d'))
     df.rename(columns={'unix_start_time': 'date'}, inplace=True)
-    
+
     # Add MSA based on latitude and longitude
     df['MSA'] = df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
-    
+
     # Convert date to datetime and extract only the date part
     df['date'] = pd.to_datetime(df['date'])
     df['datetime'] = df['date']
     df['date'] = df['date'].dt.date
-    
+
     # Calculate the number of unique devices per day
     num_devices_per_date = df.groupby('date')['user_ID'].nunique().reset_index()
     num_devices_per_date.columns = ['date', 'num_of_device']
@@ -351,83 +355,185 @@ def plot_num_of_Devices_per_Day_for_multiple_locations_Over_Time(df, population_
     # Calculate the sampling rate
     df['sampling_rate'] = df['num_of_device'] / df['population']
 
-    # Calculate the average sampling rate per MSA
+    # Calculate the average sampling rate per MSA and convert it to percentage
     df['Average Sampling Rate'] = df.groupby('MSA')['sampling_rate'].transform('mean') * 100
 
     # Create a new column combining MSA and the rounded average sampling rate
     df['MSA_Average Sampling Rate'] = df['MSA'].astype('string') + ' (' + df['Average Sampling Rate'].round(1).astype(str) + '%)'
 
-    # Plotting
+    # Plot the data
     plt.figure(figsize=(16, 8), dpi=200)
-
-    # Filter data for every 3rd day
     plot_df = df[(df['datetime'] - df['datetime'].min()).dt.days % 3 == 0]
-
-    # Plot with different colors for each MSA
     sns.lineplot(data=plot_df, x='date', y='num_of_device', hue='MSA_Average Sampling Rate', style='MSA_Average Sampling Rate', markers=True, dashes=False)
 
-    # Set plot title and labels
-    plt.title(f'Number of Devices per Day for Each MSA Over Time')
+    plt.title('Number of Devices per Day for Each MSA Over Time')
     plt.xlabel('Date', fontsize=12)
     plt.ylabel('Number of Devices', fontsize=12)
     plt.xticks(fontsize=10)
     plt.yticks(fontsize=10)
     plt.legend(title='MSA (Average sampling rate)', bbox_to_anchor=(1.01, 1), loc='upper left')
-
-    # Add a vertical line and annotation for a specific date
-    #plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
-    #plt.text(pd.Timestamp('2020-03-15'), df['num_of_device'].max() * 1.01, '  03/15', color='black', fontsize=12)
-
-    # Add grid and tighten layout
     plt.grid(True)
     plt.tight_layout()
-    plt.show()    
+    plt.show()
 
-
-def plot_num_of_records_per_device_over_time(df):
+def create_daily_metrics_df_complete(df):
+    """
+    Creates a complete DataFrame of daily metrics with all date and user_id combinations.
+    """
     daily_metrics_df = get_daily_metrics(df)
     daily_metrics_df['date'] = pd.to_datetime(daily_metrics_df['date'])
     daily_metrics_df['MSA'] = daily_metrics_df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
-    date_range = pd.date_range(start=daily_metrics_df['date'].min(), end=daily_metrics_df['date'].max(), freq='D')
-    user_ids = daily_metrics_df['user_id'].unique()
-    unique_users = daily_metrics_df['user_id'].unique()
-    unique_msa = daily_metrics_df['MSA'].unique()
     
+    # Generate a date range covering the entire period
     date_range = pd.date_range(start=daily_metrics_df['date'].min(), end=daily_metrics_df['date'].max(), freq='D')
+
     # Map user_id to MSA directly to avoid unnecessary combinations
     user_msa_map = daily_metrics_df[['user_id', 'MSA']].drop_duplicates().set_index('user_id')
+
     # Create a DataFrame with all date and user_id combinations
     all_dates = pd.DataFrame(date_range, columns=['date'])
     all_users = pd.DataFrame(user_msa_map.index.unique(), columns=['user_id'])
     user_dates = pd.merge(all_dates.assign(key=1), all_users.assign(key=1), on='key').drop('key', axis=1)
+
     # Add MSA to each user-date combination
     complete_data = user_dates.join(user_msa_map, on='user_id')
+
     # Merge with the original records and fill missing data
     daily_metrics_df_complete = complete_data.merge(daily_metrics_df, on=['date', 'user_id', 'MSA'], how='left').fillna(0)
     daily_metrics_df_complete['datetime'] = daily_metrics_df_complete['date']
     daily_metrics_df_complete['date'] = daily_metrics_df_complete['date'].dt.date
-    daily_metrics_df_complete['MSA'] = daily_metrics_df_complete['MSA'].map(MSA_dict)
-    # sort the df by MSA_order
-    daily_metrics_df_complete['MSA'] = pd.Categorical(daily_metrics_df_complete['MSA'], categories=MSA_order, ordered=True)
 
-    num_of_records_per_device_df_complete = daily_metrics_df_complete.groupby(['MSA','date']).num_of_records.mean().reset_index()
-    num_of_records_per_device_df_complete.columns = ['MSA','date','num_of_records_per_device']
-    
-    num_of_records_per_device_df_complete['MSA'] = num_of_records_per_device_df_complete['MSA'].astype('string')
-    
-    plt.figure(figsize=(16, 8),dpi=200)
-    sns.lineplot(data=num_of_records_per_device_df_complete, x='date', y='num_of_records_per_device', hue='MSA',marker='.', palette=palette, linestyle='-',linewidth=1)
-    plt.title(f'Number of Records Per Device Over Time')
+    return daily_metrics_df_complete
+
+def plot_num_of_records_per_device_over_time(df):
+    """
+    Plots the number of records per device over time for each MSA.
+    """
+    daily_metrics_df_complete = create_daily_metrics_df_complete(df)
+    num_of_records_per_device_df_complete = daily_metrics_df_complete.groupby(['MSA', 'date']).num_of_records.mean().reset_index()
+    num_of_records_per_device_df_complete.columns = ['MSA', 'date', 'num_of_records_per_device']
+
+    # Plot the data
+    plt.figure(figsize=(16, 8), dpi=200)
+    sns.lineplot(data=num_of_records_per_device_df_complete, x='date', y='num_of_records_per_device', hue='MSA', marker='.', linestyle='-', linewidth=1)
+    plt.title('Number of Records Per Device Over Time')
     plt.xlabel('Date', fontsize=12)
     plt.ylabel('Number of Records Per Device Per Day', fontsize=12)
     plt.xticks(fontsize=10)
     plt.yticks(fontsize=10)
     plt.legend(title='MSA', bbox_to_anchor=(1.01, 1), loc='upper left')
-    #plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
-    #plt.text(pd.Timestamp('2020-03-15'), num_of_records_per_device_df_complete['num_of_records_per_device'].max()*1.01, '  03/15', color='black', fontsize=12)
-    
     plt.grid(True)
     plt.tight_layout()
+    plt.show()
+
+def plot_hist(data, bin_edges, color, **kwargs):
+    """
+    Helper function to plot histogram with percentage on the y-axis.
+    """
+    counts, _ = np.histogram(data, bins=bin_edges)
+    counts = 100 * counts / float(counts.sum())
+    plt.hist(bin_edges[:-1], bin_edges, weights=counts, color=color)
+
+def plot_intra_day_temporal_occupancy(df, sample_fraction=0.1, bin_edges=np.arange(0, 49, 4), color='grey'):
+    """
+    Plots histograms of intra-day temporal occupancy by percentage for each MSA.
+    """
+    daily_metrics_df_complete = create_daily_metrics_df_complete(df)
+    sampled_data = daily_metrics_df_complete.sample(frac=sample_fraction)
+
+    plt.figure(figsize=(12, 6), dpi=200)
+    sns.set(style="whitegrid")
+
+    g = sns.FacetGrid(sampled_data, col="MSA", col_wrap=4, height=3, aspect=1.5)
+    g.map(plot_hist, "intra_day_temporal_occupancy", bin_edges=bin_edges, color=color)
+
+    # Customize the x and y axes for each subplot
+    for ax in g.axes.flatten():
+        ax.set_xticks(bin_edges)
+        ax.set_xlim([bin_edges[0], bin_edges[-1]])
+        ax.set_ylim([0, 50])
+        ax.set_ylabel('Percentage (%)')
+
+    g.set_titles("{col_name}")
+    g.set_axis_labels("Intra-day temporal occupancy", "Percentage (%)")
+    g.fig.subplots_adjust(top=0.9)
+    plt.tight_layout()
+    plt.show()
+
+def plot_inter_day_temporal_occupancy(df):
+    """
+    Plots histograms of inter-day temporal occupancy by percentage for each MSA.
+    """
+    daily_metrics_df = get_daily_metrics(df)
+    daily_metrics_df['date'] = pd.to_datetime(daily_metrics_df['date'])
+    daily_metrics_df['MSA'] = daily_metrics_df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
+    inter_day_temporal_occupancy_df = daily_metrics_df.groupby(['user_id', 'MSA'])['intra_day_temporal_occupancy'].size().reset_index()
+    inter_day_temporal_occupancy_df.columns = ['user_id', 'MSA', 'inter_day_temporal_occupancy']
+
+    plt.figure(figsize=(12, 6), dpi=200)
+    sns.set(style="whitegrid")
+    
+    # Set up the FacetGrid
+    g = sns.FacetGrid(inter_day_temporal_occupancy_df, col="MSA", col_wrap=4, height=3, aspect=1.5)
+    bin_edges = np.arange(0, 181, 15)
+    
+    # Use custom function to map the histograms
+    g.map(plot_hist, "inter_day_temporal_occupancy", bin_edges=bin_edges, color='grey')
+    
+    # Set x-ticks at bin edges and customize further
+    for ax in g.axes.flatten():
+        ax.set_xticks(bin_edges)
+        ax.set_xlim([bin_edges[0], bin_edges[-1]])
+        ax.set_ylim([0, 50])
+        ax.set_ylabel('Percentage (%)')
+    
+    g.set_titles("{col_name}")
+    g.set_axis_labels("Inter-day temporal occupancy", "Percentage (%)")
+    g.fig.subplots_adjust(top=0.9)
+    plt.tight_layout()
+    plt.show()
+
+def plot_percent_records_with_high_precision(df):
+    """
+    Plots the cumulative distribution of location accuracy (high precision) for each MSA.
+    """
+    acc_df = get_acc(df)
+    acc_df['MSA'] = acc_df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
+    acc_df = acc_df[acc_df['acc'] >= 0]
+    acc_df['acc'] = pd.to_numeric(acc_df['acc'], errors='coerce')
+    acc_df.dropna(subset=['acc'], inplace=True)
+
+    plt.figure(figsize=(12, 6), dpi=200)
+    sns.set(style="whitegrid")
+    g = sns.FacetGrid(acc_df, col="MSA", col_wrap=4, height=3, aspect=1.5)
+
+    def cdf_plot(data, **kwargs):
+        """
+        Helper function to plot the cumulative distribution of location accuracy.
+
+        Args:
+        data (Series): The data to plot in the CDF.
+
+        Returns:
+        None
+        """
+        x = data['acc']
+        if pd.api.types.is_numeric_dtype(x):
+            bin_edges = np.linspace(0, 400, 100)
+            hist, _ = np.histogram(x, bins=bin_edges)
+            cumulative = np.cumsum(hist) / hist.sum()
+            plt.plot(bin_edges[:-1], cumulative, **kwargs)
+
+    # Apply the custom function to plot the CDFs
+    g.map_dataframe(cdf_plot, color='black')
+    g.set_titles("{col_name}")
+    g.set_axis_labels("Location accuracy (m)", "Cumulative Distribution")
+    g.set(ylim=(0, 1.05))
+    g.fig.subplots_adjust(top=0.9)
+    plt.margins(y=0.05)
+    plt.tight_layout()
+    plt.show()
 
     
-
+    
+    
