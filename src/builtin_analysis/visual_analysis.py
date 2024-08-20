@@ -2,6 +2,11 @@ import pandas as pd
 import folium
 import hashlib
 import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from geopy.geocoders import Nominatim
 
 def plot_all_user_trajectories(df):
     """
@@ -254,7 +259,66 @@ def plot_unique_locations_per_weekday(df, user_id):
     except Exception as e:
         print(f"An error occurred: {e}")
 
+def get_city(lat, lon):
+    # Initialize Nominatim API
+    geolocator = Nominatim(user_agent="geoapiExercises")
 
+    # Use reverse to get the location
+    location = geolocator.reverse((lat, lon), exactly_one=True)
 
+    # Extracting city and state from the location
+    address = location.raw['address']
+    city = address.get('city', '')
+    state = address.get('state', '')
+
+    return city
+    
+def plot_num_of_Devices_per_Day_for_single_location_Over_Time(df, city_population):
+    df['unix_start_time'] = df['unix_start_time'].apply(lambda x: datetime.utcfromtimestamp(x).strftime('%Y-%m-%d'))
+    df.rename(columns={'unix_start_time': 'date'}, inplace=True)
+    df['MSA'] = df.apply(lambda row: get_city(row['orig_lat'], row['orig_long']), axis=1)
+    df['date'] = pd.to_datetime(df['date'])
+    df['datetime'] = df['date']
+    df['date'] = df['date'].dt.date
+    num_devices_per_date = df.groupby('date')['user_ID'].nunique().reset_index()
+    num_devices_per_date.columns = ['date', 'num_of_device']
+
+    # Merging the counts back to the original DataFrame
+    df = pd.merge(df, num_devices_per_date, on='date', how='left')
+
+    df['population'] = city_population
+    df['population'] = df['population'].astype(int)
+
+    df['sampling_rate'] = df['num_of_device'] / df['population']
+
+    # Calculate the average sampling rate per MSA
+    df['Average Sampling Rate'] = df.groupby('MSA')['sampling_rate'].transform('mean')
+    
+    # Convert the average sampling rate to a percentage
+    df['Average Sampling Rate'] = df['Average Sampling Rate'] * 100
+    
+    # Create a new column combining MSA and the rounded average sampling rate
+    df['MSA_Average Sampling Rate'] = df['MSA'].astype('string') + ' (' + df['Average Sampling Rate'].round(1).astype(str) + '%)'
+
+    plt.figure(figsize=(16, 8), dpi=200)
+
+    plot_df = df[(df['datetime'] - df['datetime'].min()).dt.days % 3 == 0]
+    sns.lineplot(data=plot_df, x='date', y='num_of_device', hue='MSA_Average Sampling Rate', linestyle='-', marker='o')
+
+    plt.title(f'Number of Devices per Day for {df['MSA'].iloc[0]} Over Time')
+    plt.xlabel('Date', fontsize=12)
+    plt.ylabel('Number of Devices', fontsize=12)
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.legend(title='MSA (Average sampling rate)', bbox_to_anchor=(1.01, 1), loc='upper left')
+    
+    plt.axvline(pd.Timestamp('2020-03-15'), color='black', linestyle='--', lw=2)
+    plt.text(pd.Timestamp('2020-03-15'), df['num_of_device'].max() * 1.01, '  03/15', color='black', fontsize=12)
+    
+    plt.grid(True)
+    plt.tight_layout()
+
+    
+    
 
 
